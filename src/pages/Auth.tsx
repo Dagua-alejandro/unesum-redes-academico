@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,7 +78,7 @@ const Auth = () => {
                 <Network className="h-7 w-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">UNESUM TI</h1>
+                <h1 className="text-2xl font-bold text-gray-900 notranslate" translate="no">UNESUM TI</h1>
                 <p className="text-sm text-gray-600">Redes y Comunicaciones</p>
               </div>
             </div>

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Menu, X, Network, BookOpen, Play, User, Settings, LogOut } from "lucide-react";
@@ -25,7 +24,7 @@ const Navigation = () => {
               <Network className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">UNESUM TI</h1>
+              <h1 className="text-xl font-bold text-gray-900 notranslate" translate="no">UNESUM TI</h1>
               <p className="text-xs text-gray-600">Redes y Comunicaciones</p>
             </div>
           </Link>

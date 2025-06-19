@@ -10,14 +10,15 @@ const Footer = () => {
                 <Network className="h-7 w-7 text-white" />
               </div>
               <div>
-                <h3 className="text-2xl font-bold">UNESUM TI</h3>
+                <h3 className="text-2xl font-bold notranslate" translate="no">UNESUM TI</h3>
                 <p className="text-gray-400">Redes y Comunicaciones</p>
               </div>
             </div>
             
             <p className="text-gray-300 mb-6 max-w-md leading-relaxed">
               Plataforma educativa especializada en la enseñanza de redes de computadoras 
-              para estudiantes de Tecnologías de la Información de la Universidad Estatal del Sur de Manabí.
+              para estudiantes de Tecnologías de la Información de la 
+              <span className="notranslate" translate="no">Universidad Estatal del Sur de Manabí</span>.
             </p>
             
             <div className="flex space-x-4">
@@ -94,7 +95,7 @@ const Footer = () => {
 
         <div className="border-t border-gray-800 mt-12 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-gray-400 text-sm text-center">© 2025 UNESUM - Carrera de Tecnologías de la Información. Todos los derechos reservados.</p>
+            <p className="text-gray-400 text-sm text-center notranslate" translate="no">© 2025 UNESUM - Carrera de Tecnologías de la Información. Todos los derechos reservados.</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <a href="#" className="text-gray-400 hover:text-white transition-colors text-sm">
                 Política de Privacidad
