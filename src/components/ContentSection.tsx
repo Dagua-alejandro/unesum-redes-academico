@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { BookOpen, Network, Shield, Database, Wifi, Globe }  from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +55,7 @@ const ContentSection = () => {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {categories.map((category) => {
+            console.log('Icono recibido:', category.icon);
             const IconComponent = getIcon(category.icon);
             return (
               <div
@@ -63,8 +63,8 @@ const ContentSection = () => {
                 className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-gray-100"
               >
                 <div className="p-8">
-                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-r ${category.color} mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                    <IconComponent className="h-8 w-8 text-white" />
+                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-r ${category.color} mb-6 group-hover:scale-110 transition-transform duration-300`} style={{ background: undefined }}>
+                    <IconComponent className="h-8 w-8 text-blue-600" style={{ opacity: 1, filter: 'none' }} />
                   </div>
                   
                   <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
