@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +22,11 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
+import { getProfileById, updateProfile } from '@/integrations/supabase/client';
+import type { Profile } from '@/integrations/supabase/types';
+import { useNavigate } from "react-router-dom";
+import { uploadFileToStorage, createVideo } from '@/integrations/supabase/client';
+import type { Video } from '@/integrations/supabase/types';
 
 interface Course {
   id: string;
@@ -51,13 +55,39 @@ const Admin = () => {
     category_id: "",
   });
   const { toast } = useToast();
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
+  const [myProfile, setMyProfile] = useState<Profile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const navigate = useNavigate();
+  const [videoForm, setVideoForm] = useState({
+    title: '',
+    description: '',
+    videoFile: null as File | null,
+    thumbnailFile: null as File | null,
+    is_published: false,
+  });
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+
+  // Reemplaza esta URL por la de tu función Edge Function desplegada en Supabase
+  const EDGE_FUNCTION_URL = 'https://<TU-PROYECTO>.functions.supabase.co/delete-user';
 
   useEffect(() => {
     if (user) {
       fetchCourses();
       fetchCategories();
+      fetchProfiles();
+      fetchMyProfile();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/");
+    }
+  }, [loading, user, navigate]);
 
   const fetchCourses = async () => {
     const { data, error } = await supabase
@@ -87,6 +117,29 @@ const Admin = () => {
     } else {
       setCategories(data || []);
     }
+  };
+
+  const fetchProfiles = async () => {
+    setLoadingProfiles(true);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (!error) setProfiles(data || []);
+    setLoadingProfiles(false);
+  };
+
+  const fetchMyProfile = async () => {
+    setLoadingProfile(true);
+    if (user?.id) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (!error) setMyProfile(data as Profile);
+    }
+    setLoadingProfile(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -185,12 +238,85 @@ const Admin = () => {
     setIsDialogOpen(true);
   };
 
+  const handleChangeRole = async (id: string, newRole: 'admin' | 'student' | 'instructor') => {
+    const updated = await updateProfile(id, { role: newRole });
+    if (updated) {
+      toast({ title: 'Rol actualizado', description: 'El rol del usuario ha sido actualizado.' });
+      fetchProfiles();
+    } else {
+      toast({ title: 'Error', description: 'No se pudo actualizar el rol.', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteProfile = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que quieres eliminar este perfil? Esto solo elimina el perfil, no la cuenta de autenticación.')) return;
+    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    if (!error) {
+      toast({ title: 'Perfil eliminado', description: 'El perfil ha sido eliminado.' });
+      fetchProfiles();
+    } else {
+      toast({ title: 'Error', description: 'No se pudo eliminar el perfil.', variant: 'destructive' });
+    }
+  };
+
+  const handleVideoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, files, type } = e.target;
+    if (type === 'file' && files) {
+      if (name === 'videoFile') {
+        setVideoForm((prev) => ({ ...prev, videoFile: files[0] }));
+        setVideoPreviewUrl(URL.createObjectURL(files[0]));
+      } else if (name === 'thumbnailFile') {
+        setVideoForm((prev) => ({ ...prev, thumbnailFile: files[0] }));
+        setThumbnailPreviewUrl(URL.createObjectURL(files[0]));
+      }
+    } else {
+      setVideoForm((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleVideoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!videoForm.title || !videoForm.videoFile) {
+      toast({ title: 'Error', description: 'El título y el archivo de video son obligatorios.', variant: 'destructive' });
+      return;
+    }
+    setUploadingVideo(true);
+    try {
+      // Subir video
+      const videoPath = `${Date.now()}_${videoForm.videoFile.name}`;
+      const videoData = await uploadFileToStorage('videos', videoPath, videoForm.videoFile);
+      const videoUrl = `${supabase.storage.from('videos').getPublicUrl(videoPath).data.publicUrl}`;
+      // Subir miniatura si existe
+      let thumbnailUrl = '';
+      if (videoForm.thumbnailFile) {
+        const thumbPath = `thumbnails/${Date.now()}_${videoForm.thumbnailFile.name}`;
+        await uploadFileToStorage('videos', thumbPath, videoForm.thumbnailFile);
+        thumbnailUrl = `${supabase.storage.from('videos').getPublicUrl(thumbPath).data.publicUrl}`;
+      }
+      // Guardar en la tabla videos
+      const newVideo = await createVideo({
+        title: videoForm.title,
+        description: videoForm.description,
+        video_url: videoUrl,
+        thumbnail_url: thumbnailUrl || null,
+        is_published: videoForm.is_published,
+      });
+      if (newVideo) {
+        toast({ title: '¡Éxito!', description: 'Video subido correctamente.' });
+        setVideoForm({ title: '', description: '', videoFile: null, thumbnailFile: null, is_published: false });
+        setVideoPreviewUrl(null);
+        setThumbnailPreviewUrl(null);
+      } else {
+        toast({ title: 'Error', description: 'No se pudo guardar el video.', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+    setUploadingVideo(false);
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
-  }
-
-  if (!user) {
-    return <div className="min-h-screen flex items-center justify-center">Acceso no autorizado</div>;
   }
 
   return (
@@ -408,6 +534,92 @@ const Admin = () => {
             </table>
           </div>
         </div>
+
+        {/* Sección de gestión de usuarios/perfiles solo para administradores */}
+        {!loadingProfile && myProfile?.role === 'admin' && (
+          <div className="mt-12">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><Users className="w-6 h-6" /> Gestión de usuarios</h2>
+            {loadingProfiles ? (
+              <div>Cargando usuarios...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-white border rounded shadow">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2">Nombre</th>
+                      <th className="px-4 py-2">Email/ID</th>
+                      <th className="px-4 py-2">Rol</th>
+                      <th className="px-4 py-2">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {profiles.map((profile) => (
+                      <tr key={profile.id} className="border-t">
+                        <td className="px-4 py-2">{profile.full_name || 'Sin nombre'}</td>
+                        <td className="px-4 py-2 text-xs">{profile.id}</td>
+                        <td className="px-4 py-2 capitalize">{profile.role}</td>
+                        <td className="px-4 py-2">
+                          <select
+                            value={profile.role || 'student'}
+                            onChange={e => handleChangeRole(profile.id, e.target.value as any)}
+                            className="border rounded px-2 py-1 mr-2"
+                          >
+                            <option value="admin">Administrador</option>
+                            <option value="student">Alumno</option>
+                            <option value="instructor">Instructor</option>
+                          </select>
+                          <button
+                            className="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                            onClick={() => handleDeleteProfile(profile.id)}
+                            title="Eliminar perfil"
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Sección de gestión de videos educativos solo para administradores */}
+        {!loadingProfile && myProfile?.role === 'admin' && (
+          <div className="mt-12">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><Play className="w-6 h-6" /> Gestión de videos educativos</h2>
+            <form onSubmit={handleVideoSubmit} className="bg-white rounded shadow p-6 mb-8 max-w-2xl">
+              <div className="mb-4">
+                <Label>Título</Label>
+                <Input name="title" value={videoForm.title} onChange={handleVideoInputChange} required />
+              </div>
+              <div className="mb-4">
+                <Label>Descripción</Label>
+                <Input name="description" value={videoForm.description} onChange={handleVideoInputChange} />
+              </div>
+              <div className="mb-4">
+                <Label>Archivo de video</Label>
+                <Input name="videoFile" type="file" accept="video/*" onChange={handleVideoInputChange} required />
+                {videoPreviewUrl && (
+                  <video src={videoPreviewUrl} controls className="mt-2 max-w-xs" />
+                )}
+              </div>
+              <div className="mb-4">
+                <Label>Miniatura (opcional)</Label>
+                <Input name="thumbnailFile" type="file" accept="image/*" onChange={handleVideoInputChange} />
+                {thumbnailPreviewUrl && (
+                  <img src={thumbnailPreviewUrl} alt="Miniatura" className="mt-2 max-w-xs rounded" />
+                )}
+              </div>
+              <div className="mb-4 flex items-center gap-2">
+                <Label>¿Publicar?</Label>
+                <input type="checkbox" name="is_published" checked={videoForm.is_published} onChange={e => setVideoForm(f => ({ ...f, is_published: e.target.checked }))} />
+              </div>
+              <Button type="submit" disabled={uploadingVideo}>{uploadingVideo ? 'Subiendo...' : 'Guardar video'}</Button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
